@@ -3,6 +3,7 @@ site.json
 worklog/
 docs/
 tests/
+.worktrees/
 __pycache__/
 *.pyc
 .pytest_cache/
