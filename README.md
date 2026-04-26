@@ -1,10 +1,20 @@
 # 007_geminiTest
 
-一个用于抓取并整理自己正在使用的 API 站点模型、分组与计费配置的小脚本，便于横向对比不同站点的模型可用性与使用成本。
+> 一个面向个人使用的 CLI 小工具，用于抓取并整理自己正在使用的 API 站点模型、分组与计费配置，方便横向对比不同站点的模型可用性与性价比。
 
-## 功能范围
+## 这是什么
 
-当前入口文件是 [main.py](main.py)，负责：
+当前版本提供一个本地运行的命令行入口 [main.py](main.py)。它会读取你的站点配置，抓取目标站点可访问的模型与分组相关 JSON 数据，并清洗成便于继续分析的统一结果文件。
+
+这个项目适合以下场景：
+
+- 对比多个 API 站点的模型可用性
+- 整理不同站点的分组、倍率和计费信息
+- 为后续人工比价、筛选和记录提供基础数据
+
+当前版本**仅提供 CLI 流程**，不包含网页面板或在线服务。
+
+## 当前能力
 
 - 读取项目根 `site.json`
 - 交互式新增站点配置
@@ -13,35 +23,22 @@
 - 在一轮结束后继续驻留终端，支持继续新增站点或直接回车退出
 - 在抓取失败时提示对应 `raw/` 目录，允许手动补充 JSON 后重新清洗
 
-## 公开仓库包含内容
+## 快速开始
 
-此仓库只保留运行脚本所需的最小公开文件：
-
-- [main.py](main.py)
-- [script/](script/)
-- [site.json.example](site.json.example)
-- [README.md](README.md)
-- [.gitignore](.gitignore)
-- [requirements.txt](requirements.txt)
-- [LICENSE](LICENSE)
-
-仓库**不包含**真实配置、真实抓取数据、工作日志、内部文档和测试文件。
-
-## 运行环境
+### 1. 运行环境
 
 - 推荐 Python：3.12
 - 最低支持版本：Python 3.10
 
-安装依赖：
+### 2. 安装依赖
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-## 配置方式
+### 3. 准备配置
 
-1. 复制 [site.json.example](site.json.example) 为 `site.json`。
-2. 按需填写你自己有权访问的站点配置。
+复制 [site.json.example](site.json.example) 为 `site.json`，然后填写你自己有权访问的站点配置。
 
 示例：
 
@@ -61,9 +58,7 @@ python -m pip install -r requirements.txt
 
 程序在新增站点时会基于规范化后的 URL 查重，避免写入重复站点。
 
-## 运行方式
-
-在项目根执行：
+### 4. 运行脚本
 
 ```bash
 python main.py
@@ -79,7 +74,7 @@ python main.py
 6. 对抓取失败站点提示手动补 `raw/` 后重试清洗
 7. 保持终端驻留，等待继续新增或退出
 
-## 输出说明
+## 输出内容
 
 运行后会在项目根生成本地输出目录：
 
@@ -88,7 +83,21 @@ python main.py
 
 其中 `pricing.json` 是清洗阶段的必需输入；如果站点还存在分组信息，程序会同时读取 `user_groups.json` 参与整理。
 
-## 合法使用与免责声明
+## 仓库公开范围
+
+此仓库只保留运行脚本所需的最小公开文件：
+
+- [main.py](main.py)
+- [script/](script/)
+- [site.json.example](site.json.example)
+- [README.md](README.md)
+- [.gitignore](.gitignore)
+- [requirements.txt](requirements.txt)
+- [LICENSE](LICENSE)
+
+仓库**不包含**真实配置、真实抓取数据、工作日志、内部文档和测试文件。
+
+## 使用边界与免责声明
 
 本项目仅面向**个人使用**，仅适用于你本人拥有、正在使用或已获得明确授权访问的 API 站点。
 
