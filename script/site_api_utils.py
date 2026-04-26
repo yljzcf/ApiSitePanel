@@ -345,6 +345,50 @@ def _build_records_from_model_group(pricing_payload):
     return records
 
 
+def _build_records_from_channels(pricing_payload):
+    if not isinstance(pricing_payload, dict):
+        return []
+
+    channels = pricing_payload.get("channels")
+    if not isinstance(channels, list):
+        return []
+
+    records = []
+    for channel in channels:
+        if not isinstance(channel, dict):
+            continue
+        group_name = str(channel.get("name") or "").strip()
+        if not group_name:
+            continue
+        group_description = str(channel.get("description") or "").strip()
+        group_ratio = _safe_float(channel.get("rateMultiplier"))
+        if group_ratio is None:
+            continue
+        if isinstance(group_ratio, float) and group_ratio.is_integer():
+            group_ratio = int(group_ratio)
+
+        models = channel.get("models") or []
+        if not isinstance(models, list):
+            continue
+
+        for model_name in models:
+            normalized_model_name = str(model_name or "").strip()
+            if not normalized_model_name:
+                continue
+            records.append(
+                _build_record(
+                    model_name=normalized_model_name,
+                    model_ratio=None,
+                    model_price=None,
+                    group_name=group_name,
+                    group_description=group_description,
+                    group_ratio=group_ratio,
+                    quota_type=None,
+                )
+            )
+    return records
+
+
 def _extract_public_upstreams(payload):
     if not isinstance(payload, dict):
         return []
@@ -425,7 +469,10 @@ def build_site_records(pricing_payload, user_groups_payload=None):
     records = _build_records_from_model_group(pricing_payload)
     if records:
         return records
-    return _build_records_from_public_upstreams(pricing_payload, user_groups_payload)
+    records = _build_records_from_public_upstreams(pricing_payload, user_groups_payload)
+    if records:
+        return records
+    return _build_records_from_channels(pricing_payload)
 
 
 def parse_pricing_payload(payload):
