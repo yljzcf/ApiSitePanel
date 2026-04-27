@@ -2,6 +2,9 @@
 
 > 一个面向个人使用的 CLI 小工具，用于抓取并整理自己正在使用的 API 站点模型、分组与计费配置，方便横向对比不同站点的模型可用性与性价比。
 
+<img width="1920" height="869" alt="image" src="https://github.com/user-attachments/assets/c6ff7646-af97-4aa5-8c88-797499ed476a" /><img width="1920" height="869" alt="image" src="https://github.com/user-attachments/assets/2b29aec8-a5b3-4c87-a0e6-991e90ce21cc" />
+
+
 ## 这是什么
 
 当前版本提供一个本地运行的命令行入口 [main.py](main.py) 和前端面板 [panel/](panel/)。它会读取你的站点配置，抓取目标站点可访问的模型与分组相关 JSON 数据，清洗成便于继续分析的统一结果文件，并在补充充值/套餐信息后打开本地面板进行筛选和对比。
