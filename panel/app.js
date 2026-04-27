@@ -22,7 +22,9 @@
       const html = await siteListRes.text();
       const dirLinks = [...html.matchAll(/href="([^"]+)\/"/g)].map(m => decodeURIComponent(m[1]));
       siteDirs = dirLinks.filter(n => !n.startsWith('.'));
-      const jsonLinks = [...html.matchAll(/href="([^"]*grouped-by-site[^"]*)"/g)].map(m => decodeURIComponent(m[1]));
+      const jsonLinks = [...html.matchAll(/href="([^"]+\.json)"/g)]
+        .map(m => decodeURIComponent(m[1]))
+        .filter(name => name.includes('grouped-by-site') || (name.includes('充值') && name.includes('套餐')));
       if (jsonLinks.length > 0) {
         const latestFile = jsonLinks.sort().pop();
         const res = await fetch(base + 'site/' + encodeURIComponent(latestFile));
