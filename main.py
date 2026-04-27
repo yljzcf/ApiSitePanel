@@ -41,7 +41,7 @@ def ensure_topup_plans_file(path):
     if path.exists():
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("{}\n", encoding="utf-8")
+    path.write_text("[]\n", encoding="utf-8")
     return True
 
 
@@ -52,25 +52,34 @@ def validate_topup_plans_file(path):
             payload = json.load(file)
     except json.JSONDecodeError as exc:
         return f"JSON 格式错误：第 {exc.lineno} 行第 {exc.colno} 列，{exc.msg}。"
-    if not isinstance(payload, dict):
-        return f"{TOPUP_PLANS_NAME} 顶层必须是按站点名分组的对象。"
+    if not isinstance(payload, list):
+        return f"{TOPUP_PLANS_NAME} 顶层必须是单个站点的充值/套餐数组。"
     return None
 
 
-def wait_for_topup_plans_ready(path, input_func=input, output_func=print):
-    path = Path(path)
-    ensure_topup_plans_file(path)
-    output_func(f"[*] 基础数据已生成，请在 {path} 中补充充值/套餐信息。")
+def wait_for_topup_plans_ready(paths, input_func=input, output_func=print):
+    paths = [Path(path) for path in paths]
+    for path in paths:
+        ensure_topup_plans_file(path)
+    output_func("[*] 基础数据已生成，请在以下文件中补充各站点充值/套餐信息：")
+    for path in paths:
+        output_func(f"    - {path}")
     while True:
         ready = ask_yes_no("是否已经添加完成？", input_func=input_func, output_func=output_func, default=False)
         if not ready:
             output_func("[-] 未确认完成，暂不打开前端面板。")
             return False
-        error = validate_topup_plans_file(path)
-        if error is None:
+        errors = [(path, validate_topup_plans_file(path)) for path in paths]
+        errors = [(path, error) for path, error in errors if error is not None]
+        if not errors:
             return True
-        output_func(f"[-] {error}")
-        output_func(f"[*] 请修正 {path} 后再次确认。")
+        for path, error in errors:
+            output_func(f"[-] {path}：{error}")
+        output_func("[*] 请修正以上文件后再次确认。")
+
+
+def topup_plan_paths_for_summaries(summaries, site_root_dir=SITE_ROOT_DIR):
+    return [Path(site_root_dir) / summary["site_name"] / TOPUP_PLANS_NAME for summary in summaries]
 
 
 def find_available_port(preferred=8000, attempts=50):
@@ -84,10 +93,15 @@ def find_available_port(preferred=8000, attempts=50):
     raise OSError(f"无法在 {preferred}-{preferred + attempts - 1} 范围内找到可用端口。")
 
 
+class QuietSimpleHTTPRequestHandler(SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        return
+
+
 def start_panel_server(project_root, output_func=print):
     project_root = Path(project_root)
     port = find_available_port()
-    handler = partial(SimpleHTTPRequestHandler, directory=str(project_root))
+    handler = partial(QuietSimpleHTTPRequestHandler, directory=str(project_root))
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -142,6 +156,16 @@ def ask_yes_no(prompt, input_func=input, output_func=print, default=False):
         if answer in {"n", "no"}:
             return False
         output_func("[-] 请输入 y 或 n。")
+
+
+def choose_start_mode(input_func=input, output_func=print):
+    while True:
+        answer = input_func("请选择启动方式：1=爬取数据，2=打开面板: ").strip()
+        if answer == "1":
+            return "crawl"
+        if answer == "2":
+            return "panel"
+        output_func("[-] 请输入 1 或 2。")
 
 
 def choose_config_target(default_config_path, input_func=input, output_func=print):
@@ -354,10 +378,26 @@ def print_summary(summaries, output_func=print):
     return totals
 
 
+def start_panel_flow(output_func=print):
+    _, _, panel_url = start_panel_server(PROJECT_ROOT, output_func=output_func)
+    open_panel(panel_url, output_func=output_func)
+
+
+def wait_for_panel_exit(input_func=input):
+    input_func("")
+
+
 def main(input_func=input, output_func=print):
     exit_code = 0
 
     while True:
+        start_mode = choose_start_mode(input_func=input_func, output_func=output_func)
+        if start_mode == "panel":
+            start_panel_flow(output_func=output_func)
+            output_func("[*] 当前终端不会自动关闭。")
+            wait_for_panel_exit(input_func=input_func)
+            return exit_code
+
         config_path = PROJECT_ROOT / DEFAULT_CONFIG_NAME
         output_func("[*] 正在读取站点配置...")
         target_config_path, sites = resolve_sites_for_run(
@@ -386,12 +426,11 @@ def main(input_func=input, output_func=print):
                 output_func("[-] 本次没有成功完成的站点，请检查上方错误信息。")
             print_summary(all_summaries, output_func=output_func)
             if all_summaries and wait_for_topup_plans_ready(
-                SITE_ROOT_DIR / TOPUP_PLANS_NAME,
+                topup_plan_paths_for_summaries(all_summaries, site_root_dir=SITE_ROOT_DIR),
                 input_func=input_func,
                 output_func=output_func,
             ):
-                _, _, panel_url = start_panel_server(PROJECT_ROOT, output_func=output_func)
-                open_panel(panel_url, output_func=output_func)
+                start_panel_flow(output_func=output_func)
 
         output_func("[*] 当前终端不会自动关闭。")
         if not ask_continue_or_exit(input_func=input_func, output_func=output_func):

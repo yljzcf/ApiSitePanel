@@ -12,6 +12,8 @@
     maxAmount: null,
   };
 
+  const TOPUP_PLANS_NAME = 'topup+plans.json';
+
   async function loadData() {
     const base = location.pathname.replace(/\/panel\/.*$/, '/');
     const siteListRes = await fetch(base + 'site/');
@@ -22,28 +24,23 @@
       const html = await siteListRes.text();
       const dirLinks = [...html.matchAll(/href="([^"]+)\/"/g)].map(m => decodeURIComponent(m[1]));
       siteDirs = dirLinks.filter(n => !n.startsWith('.'));
-      const jsonLinks = [...html.matchAll(/href="([^"]+\.json)"/g)]
-        .map(m => decodeURIComponent(m[1]))
-        .filter(name => {
-          const lowerName = name.toLowerCase();
-          return name.includes('grouped-by-site')
-            || (name.includes('充值') && name.includes('套餐'))
-            || (lowerName.includes('topup') && lowerName.includes('plans'));
-        });
-      if (jsonLinks.length > 0) {
-        const latestFile = jsonLinks.sort().pop();
-        const res = await fetch(base + 'site/' + encodeURIComponent(latestFile));
-        if (res.ok) rechargeData = await res.json();
-      }
     }
 
     const modelData = {};
     for (const dir of siteDirs) {
       const encoded = encodeURIComponent(dir);
       const jsonPath = base + 'site/' + encoded + '/' + encoded + '.json';
+      const topupPath = base + 'site/' + encoded + '/' + TOPUP_PLANS_NAME;
       try {
         const res = await fetch(jsonPath);
         if (res.ok) modelData[dir] = await res.json();
+      } catch (_) {}
+      try {
+        const res = await fetch(topupPath);
+        if (res.ok) {
+          const payload = await res.json();
+          if (Array.isArray(payload)) rechargeData[dir] = payload;
+        }
       } catch (_) {}
     }
 
@@ -53,11 +50,15 @@
       if (!models || !recharges) continue;
       for (const r of recharges) {
         const amount = Number(r['金额']);
-        const realQuota = Number(r['实际额度']);
-        const hasStoredRatio = r['倍率'] !== undefined && r['倍率'] !== null && r['倍率'] !== '';
-        const storedRatio = Number(r['倍率']);
-        const preRatio = hasStoredRatio && Number.isFinite(storedRatio) ? storedRatio : amount / realQuota;
-        if (!Number.isFinite(amount) || !Number.isFinite(realQuota) || realQuota <= 0 || !Number.isFinite(preRatio)) continue;
+        const quota = Number(r['额度']);
+        const discount = r['会员折扣'];
+        const hasDiscount = discount !== undefined && discount !== null && discount !== '';
+        const numericDiscount = hasDiscount ? Number(discount) : null;
+        const realQuota = hasDiscount ? quota / numericDiscount : quota;
+        const preRatio = amount / realQuota;
+        if (!Number.isFinite(amount) || !Number.isFinite(quota) || quota <= 0) continue;
+        if (hasDiscount && (!Number.isFinite(numericDiscount) || numericDiscount <= 0)) continue;
+        if (!Number.isFinite(realQuota) || realQuota <= 0 || !Number.isFinite(preRatio)) continue;
         for (const m of models) {
           const modelUnit = m.quota_type === '按次计费' ? m.model_price : m.model_ratio;
           const comboRatio = preRatio * modelUnit * m.group_ratio;
@@ -69,9 +70,10 @@
             planName: r['套餐名'],
             amount: amount,
             preRatio: preRatio,
-            quota: r['额度'],
-            discount: r['会员折扣'],
+            quota: quota,
+            discount: hasDiscount ? numericDiscount : null,
             realQuota: realQuota,
+            showRealQuota: hasDiscount,
             model: m.model_name,
             modelRatio: m.model_ratio,
             modelPrice: m.model_price,
@@ -143,12 +145,15 @@
       const planClass = row.planType === '充值' ? 'plan-tag--recharge' : 'plan-tag--package';
       tr.appendChild(cell(planText, `cell-primary ${planClass}`));
 
+      const quotaMeta = row.showRealQuota
+        ? `额度: ${fmt(row.quota)} | 会员折扣: ${fmt(row.discount)} | 实际额度: ${fmt(row.realQuota)}`
+        : `额度: ${fmt(row.quota)}`;
       const amountHtml = `
         <div class="tooltip-trigger">
           <div class="cell-primary">¥${fmt(row.amount)}</div>
           <div class="cell-meta">倍率 ${fmt(row.preRatio)}</div>
           <div class="tooltip-content">
-            额度: ${fmt(row.quota)} | 实际额度: ${fmt(row.realQuota)}${row.discount != null ? ' | 会员折扣: ' + row.discount : ''}
+            ${quotaMeta}
           </div>
         </div>`;
       const tdAmount = document.createElement('td');
