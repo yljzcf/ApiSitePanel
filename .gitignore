@@ -1,4 +1,6 @@
 site/
+!site/Spark/
+!site/Spark/**
 site.json
 worklog/
 docs/
