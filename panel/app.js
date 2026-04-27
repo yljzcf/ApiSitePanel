@@ -24,7 +24,12 @@
       siteDirs = dirLinks.filter(n => !n.startsWith('.'));
       const jsonLinks = [...html.matchAll(/href="([^"]+\.json)"/g)]
         .map(m => decodeURIComponent(m[1]))
-        .filter(name => name.includes('grouped-by-site') || (name.includes('充值') && name.includes('套餐')));
+        .filter(name => {
+          const lowerName = name.toLowerCase();
+          return name.includes('grouped-by-site')
+            || (name.includes('充值') && name.includes('套餐'))
+            || (lowerName.includes('topup') && lowerName.includes('plans'));
+        });
       if (jsonLinks.length > 0) {
         const latestFile = jsonLinks.sort().pop();
         const res = await fetch(base + 'site/' + encodeURIComponent(latestFile));
@@ -47,20 +52,26 @@
       const models = modelData[siteName];
       if (!models || !recharges) continue;
       for (const r of recharges) {
+        const amount = Number(r['金额']);
+        const realQuota = Number(r['实际额度']);
+        const hasStoredRatio = r['倍率'] !== undefined && r['倍率'] !== null && r['倍率'] !== '';
+        const storedRatio = Number(r['倍率']);
+        const preRatio = hasStoredRatio && Number.isFinite(storedRatio) ? storedRatio : amount / realQuota;
+        if (!Number.isFinite(amount) || !Number.isFinite(realQuota) || realQuota <= 0 || !Number.isFinite(preRatio)) continue;
         for (const m of models) {
           const modelUnit = m.quota_type === '按次计费' ? m.model_price : m.model_ratio;
-          const comboRatio = r['倍率'] * modelUnit * m.group_ratio;
+          const comboRatio = preRatio * modelUnit * m.group_ratio;
           const valuePerYuan = comboRatio === 0 ? 0 : 1 / comboRatio;
           rows.push({
             value: valuePerYuan,
             site: siteName,
             planType: r['类型'],
             planName: r['套餐名'],
-            amount: r['金额'],
-            preRatio: r['倍率'],
+            amount: amount,
+            preRatio: preRatio,
             quota: r['额度'],
             discount: r['会员折扣'],
-            realQuota: r['实际额度'],
+            realQuota: realQuota,
             model: m.model_name,
             modelRatio: m.model_ratio,
             modelPrice: m.model_price,

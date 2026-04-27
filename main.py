@@ -1,4 +1,10 @@
+import json
+import socket
 import sys
+import threading
+import webbrowser
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent / "script"
@@ -13,6 +19,7 @@ from site_api_utils import load_json, normalize_base_url, save_json, site_dir_na
 PROJECT_ROOT = Path(__file__).resolve().parent
 SITE_ROOT_DIR = PROJECT_ROOT / "site"
 DEFAULT_CONFIG_NAME = "site.json"
+TOPUP_PLANS_NAME = "topup+plans.json"
 DEFAULT_SITE_CONFIG_TEMPLATE = [
     {
         "url": "https://api.example.com",
@@ -27,6 +34,71 @@ def ensure_site_config(config_path):
         return False
     save_json(config_path, DEFAULT_SITE_CONFIG_TEMPLATE)
     return True
+
+
+def ensure_topup_plans_file(path):
+    path = Path(path)
+    if path.exists():
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{}\n", encoding="utf-8")
+    return True
+
+
+def validate_topup_plans_file(path):
+    path = Path(path)
+    try:
+        with path.open("r", encoding="utf-8") as file:
+            payload = json.load(file)
+    except json.JSONDecodeError as exc:
+        return f"JSON 格式错误：第 {exc.lineno} 行第 {exc.colno} 列，{exc.msg}。"
+    if not isinstance(payload, dict):
+        return f"{TOPUP_PLANS_NAME} 顶层必须是按站点名分组的对象。"
+    return None
+
+
+def wait_for_topup_plans_ready(path, input_func=input, output_func=print):
+    path = Path(path)
+    ensure_topup_plans_file(path)
+    output_func(f"[*] 基础数据已生成，请在 {path} 中补充充值/套餐信息。")
+    while True:
+        ready = ask_yes_no("是否已经添加完成？", input_func=input_func, output_func=output_func, default=False)
+        if not ready:
+            output_func("[-] 未确认完成，暂不打开前端面板。")
+            return False
+        error = validate_topup_plans_file(path)
+        if error is None:
+            return True
+        output_func(f"[-] {error}")
+        output_func(f"[*] 请修正 {path} 后再次确认。")
+
+
+def find_available_port(preferred=8000, attempts=50):
+    for port in range(preferred, preferred + attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return port
+    raise OSError(f"无法在 {preferred}-{preferred + attempts - 1} 范围内找到可用端口。")
+
+
+def start_panel_server(project_root, output_func=print):
+    project_root = Path(project_root)
+    port = find_available_port()
+    handler = partial(SimpleHTTPRequestHandler, directory=str(project_root))
+    server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    url = f"http://127.0.0.1:{port}/panel/"
+    output_func(f"[+] 前端服务已启动：{url}")
+    return server, thread, url
+
+
+def open_panel(url, output_func=print):
+    webbrowser.open(url)
+    output_func(f"[+] 已尝试自动打开浏览器：{url}")
 
 
 def _is_placeholder_site(site):
@@ -313,7 +385,13 @@ def main(input_func=input, output_func=print):
                 exit_code = 1
                 output_func("[-] 本次没有成功完成的站点，请检查上方错误信息。")
             print_summary(all_summaries, output_func=output_func)
-            output_func("[*] 网页看板入口预留中，当前尚未实现。")
+            if all_summaries and wait_for_topup_plans_ready(
+                SITE_ROOT_DIR / TOPUP_PLANS_NAME,
+                input_func=input_func,
+                output_func=output_func,
+            ):
+                _, _, panel_url = start_panel_server(PROJECT_ROOT, output_func=output_func)
+                open_panel(panel_url, output_func=output_func)
 
         output_func("[*] 当前终端不会自动关闭。")
         if not ask_continue_or_exit(input_func=input_func, output_func=output_func):
