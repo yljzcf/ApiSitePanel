@@ -1,10 +1,9 @@
 site/
-!site/Spark/
-!site/Spark/**
 site.json
-worklog/
+progress.json
 docs/
 tests/
+worklog/
 .worktrees/
 __pycache__/
 *.pyc

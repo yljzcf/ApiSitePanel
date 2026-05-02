@@ -115,14 +115,13 @@ python main.py
 - [main.py](main.py)
 - [script/](script/)
 - [panel/](panel/)
-- [site/Spark/](site/Spark/)
 - [site.json.example](site.json.example)
 - [README.md](README.md)
 - [.gitignore](.gitignore)
 - [requirements.txt](requirements.txt)
 - [LICENSE](LICENSE)
 
-仓库**不包含**真实配置、非示例站点数据、工作日志、内部设计文档和历史备份文件。
+仓库**不包含**真实配置、站点抓取数据、充值/套餐数据、工作日志、内部设计文档和历史备份文件。
 
 ## 使用边界与免责声明
 
