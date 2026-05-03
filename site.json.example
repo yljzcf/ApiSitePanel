@@ -1,6 +1,9 @@
 [
   {
-    "url": "https://sparkcode.top",
-    "name": "Spark"
+    "url": "https://api.example.com",
+    "name": "示例站点",
+    "new-api-user": "",
+    "token": "",
+    "Authorization": ""
   }
 ]

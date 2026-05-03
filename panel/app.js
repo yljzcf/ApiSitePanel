@@ -33,8 +33,13 @@
       const topupPath = base + 'site/' + encoded + '/' + TOPUP_PLANS_NAME;
       try {
         const res = await fetch(jsonPath);
-        if (res.ok) modelData[dir] = await res.json();
-      } catch (_) {}
+        if (!res.ok) continue;
+        const payload = await res.json();
+        if (!Array.isArray(payload)) continue;
+        modelData[dir] = payload;
+      } catch (_) {
+        continue;
+      }
       try {
         const res = await fetch(topupPath);
         if (res.ok) {
